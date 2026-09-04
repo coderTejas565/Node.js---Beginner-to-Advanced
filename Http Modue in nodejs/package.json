@@ -1,0 +1,17 @@
+{
+  "name": "Http Modue in nodejs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --watch server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "@types/node": "^26.4.0"
+  },
+  "devDependencies": {}
+}
