@@ -40,10 +40,38 @@ const server = http.createServer((req, res) => {
 
     case '/users':
       const params = url.searchParams;
+
+      if (req.method === 'POST') {
+        res.writeHead(201, {
+          'Content-Type': 'application/json',
+        });
+
+        return res.end(
+          JSON.stringify({
+            message: 'User created',
+          }),
+        );
+      }
+
+      if (req.method === 'DELETE') {
+        res.writeHead(405, {
+          'Content-Type': 'application/json',
+        });
+
+        return res.end(
+          JSON.stringify({
+            message: 'Method Not Allowed',
+          }),
+        );
+      }
+
       res.writeHead(200, {
         'Content-Type': 'application/json',
       });
-      console.log(params);
+
+    //   console.log(params);
+      console.log(req.method);
+      console.log(req.url);
 
       const page = Number(params.get('page')) || 1;
       const limit = Number(params.get('limit')) || 10;
