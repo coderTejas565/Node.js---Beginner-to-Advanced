@@ -9,7 +9,37 @@ const server = http.createServer((req, res) => {
   ];
 
   const url = new URL(req.url, 'http://localhost:8000');
-  console.log(url);
+  //   console.log(url);
+  const parts = url.pathname.split('/');
+  console.log(parts);
+
+  if (parts[1] === 'users' && parts[2]) {
+    const id = Number(parts[2]);
+    console.log(id);
+
+    const user = users.find((user) => user.id === id);
+
+    if (!user) {
+      res.writeHead(
+        404,
+
+        {
+          'Content-Type': 'application/json',
+        },
+      );
+      return res.end(
+        JSON.stringify({
+          error: 'user not found',
+        }),
+      );
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+    });
+
+    return res.end(JSON.stringify(user));
+  }
 
   switch (url.pathname) {
     case '/':
@@ -69,7 +99,7 @@ const server = http.createServer((req, res) => {
         'Content-Type': 'application/json',
       });
 
-    //   console.log(params);
+      //   console.log(params);
       console.log(req.method);
       console.log(req.url);
 
