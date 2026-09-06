@@ -8,39 +8,47 @@ const server = http.createServer((req, res) => {
     { id: 2, name: 'Rahul' },
   ];
 
+  // Convert the request URL into a URL object
   const url = new URL(req.url, 'http://localhost:8000');
   //   console.log(url);
+
+  // Split the URL path into parts
   const parts = url.pathname.split('/');
+  // See the different parts of the URL
   console.log(parts);
 
-  if (parts[1] === 'users' && parts[2]) {
-    const id = Number(parts[2]);
-    console.log(id);
+  // Example of manually handling path parameters
+  //   if (parts[1] === 'users' && parts[2]) {
 
-    const user = users.find((user) => user.id === id);
+  // // Convert the user ID from string to number
+  //     const id = Number(parts[2]);
+  //     console.log(id);
 
-    if (!user) {
-      res.writeHead(
-        404,
+  //     const user = users.find((user) => user.id === id);
 
-        {
-          'Content-Type': 'application/json',
-        },
-      );
-      return res.end(
-        JSON.stringify({
-          error: 'user not found',
-        }),
-      );
-    }
+  //     if (!user) {
+  //       res.writeHead(
+  //         404,
 
-    res.writeHead(200, {
-      'Content-Type': 'application/json',
-    });
+  //         {
+  //           'Content-Type': 'application/json',
+  //         },
+  //       );
+  //       return res.end(
+  //         JSON.stringify({
+  //           error: 'user not found',
+  //         }),
+  //       );
+  //     }
 
-    return res.end(JSON.stringify(user));
-  }
+  //     res.writeHead(200, {
+  //       'Content-Type': 'application/json',
+  //     });
 
+  //     return res.end(JSON.stringify(user));
+  //   }
+
+  // Route requests based on the URL path
   switch (url.pathname) {
     case '/':
       res.writeHead(200, {
@@ -69,18 +77,47 @@ const server = http.createServer((req, res) => {
       break;
 
     case '/users':
+        // Get query parameters from the URL
       const params = url.searchParams;
 
       if (req.method === 'POST') {
-        res.writeHead(201, {
-          'Content-Type': 'application/json',
+        // Store the incoming request body
+        let body = '';
+
+        req.on('data', (chunk) => {
+            // Add each chunk to the complete body
+          body += chunk;
         });
 
-        return res.end(
-          JSON.stringify({
-            message: 'User created',
-          }),
-        );
+        // Run after the complete body is received
+        req.on('end', () => {
+          try {
+            // Convert JSON string into a JavaScript object
+            const data = JSON.parse(body);
+            console.log(data);
+            res.writeHead(201, {
+              'Content-Type': 'application/json',
+            });
+            // Send the created user back
+            return res.end(
+              JSON.stringify({
+                message: 'User created',
+                user: data,
+              }),
+            );
+          } catch (error) {
+            res.writeHead(400, {
+              'Content-Type': 'application/json',
+            });
+
+            res.end(
+              JSON.stringify({
+                error: 'Invalid JSON',
+              }),
+            );
+          }
+        });
+        return;
       }
 
       if (req.method === 'DELETE') {
