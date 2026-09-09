@@ -57,21 +57,28 @@ Client ←────── HTTP Response ─────── Server
 └─────────────────────────────┘
 ```
 
+### Remember
+
+```text
+Request  → Method + URL + Headers + Body
+Response → Status + Headers + Body
+```
+
 ---
 
 ## 3. HTTP Methods — Semantics
 
 | Method  | Safe | Idempotent | Typical use           |
-| ------- | ---: | ---------: | --------------------- |
-| GET     |    ✔ |          ✔ | Retrieve              |
-| HEAD    |    ✔ |          ✔ | Metadata only         |
-| OPTIONS |    ✔ |          ✔ | Communication/options |
-| PUT     |    ✘ |          ✔ | Replace resource      |
-| DELETE  |    ✘ |          ✔ | Delete resource       |
-| POST    |    ✘ |          ✘ | Create/submit         |
-| PATCH   |    ✘ |         ✘* | Partial update        |
+| ------- | ---- | ---------- | --------------------- |
+| GET     | ✔    | ✔          | Retrieve              |
+| HEAD    | ✔    | ✔          | Metadata only         |
+| OPTIONS | ✔    | ✔          | Communication/options |
+| PUT     | ✘    | ✔          | Replace resource      |
+| DELETE  | ✘    | ✔          | Delete resource       |
+| POST    | ✘    | ✘          | Create/submit         |
+| PATCH   | ✘    | ✘*         | Partial update        |
 
-> *PATCH is not inherently idempotent; an individual PATCH operation can be designed to be idempotent.
+> *PATCH is not inherently idempotent; an individual PATCH operation can be designed to be idempotent.*
 
 **Safe:** Intended to be read-only from the client's perspective.
 
@@ -94,6 +101,10 @@ POST /orders
 → repeat
 → potentially creates multiple orders
 ```
+
+### Important
+
+POST can be made safe from duplicate processing using an **idempotency key**.
 
 ---
 
@@ -150,6 +161,7 @@ High-value codes:
 401 → authentication required/failed
 403 → authenticated but forbidden
 404 → resource not found
+405 → method not allowed
 409 → conflict with current resource state
 422 → semantically invalid input
 
@@ -251,6 +263,8 @@ QUIC provides independent streams, avoiding TCP's connection-level **head-of-lin
 
 HTTPS = HTTP protected by TLS.
 
+Conceptually:
+
 ```text
 HTTP
  ↓
@@ -279,9 +293,9 @@ When the body size is known:
 Content-Length: N
 ```
 
-→ receiver knows exactly how many bytes belong to the body.
+The receiver knows how many bytes belong to the body.
 
-When the body is produced incrementally and length isn't known beforehand:
+When the body is produced incrementally and its length isn't known beforehand:
 
 ```http
 Transfer-Encoding: chunked
@@ -309,7 +323,7 @@ chunked
 → 0-length chunk marks the end
 ```
 
-**Important:** Chunked transfer encoding is an HTTP/1.1 message-framing mechanism. HTTP/2 and HTTP/3 use their own framing mechanisms rather than `Transfer-Encoding: chunked`.
+> Chunked transfer encoding is an HTTP/1.1 message-framing mechanism. HTTP/2 and HTTP/3 use their own framing mechanisms rather than `Transfer-Encoding: chunked`.
 
 ---
 
@@ -360,7 +374,9 @@ Server validates
 
 ---
 
-## 12. Node.js HTTP Mental Model
+# 12. Node.js HTTP Mental Model
+
+Node.js gives us low-level access to the HTTP request and response.
 
 ```text
 Network
@@ -398,7 +414,7 @@ res
 
 ---
 
-## 13. Node.js HTTP Bodies Are Streams
+# 13. Node.js HTTP Bodies Are Streams
 
 Request body:
 
@@ -426,10 +442,10 @@ Network
 
 This enables:
 
-- large uploads/downloads
-- streaming responses
-- lower memory usage
-- backpressure
+* large uploads/downloads
+* streaming responses
+* lower memory usage
+* backpressure
 
 ### Backpressure
 
@@ -451,7 +467,7 @@ continue
 
 ---
 
-## 14. Backend Request Pipeline
+# 14. Backend Request Pipeline
 
 ```text
 Client
@@ -483,28 +499,562 @@ HTTP is the **application-level boundary between network communication and your 
 
 ---
 
-# Core Mental Model
+# 15. HTTP in Node.js — Practical
 
-```text
-HTTP REQUEST
-├── Method
-├── Target
-├── Headers
-└── Body
+This is where we manually implement the HTTP concepts using Node's built-in `http` module.
 
-        ↓
+## 15.1 Create an HTTP Server
 
-      SERVER
+```js
+// Import Node's built-in HTTP module
+import http from 'node:http';
 
-        ↓
+// Port where our server will run
+const port = 8000;
 
-HTTP RESPONSE
-├── Status
-├── Headers
-└── Body
+// Create the HTTP server
+const server = http.createServer((req, res) => {
+  // Server logic goes here
+});
+
+// Start listening for requests
+server.listen(port, () => {
+  console.log(`server is listening on ${port}`);
+});
 ```
 
-### Remember
+Mental model:
+
+```text
+Client
+  ↓
+HTTP Request
+  ↓
+http.createServer()
+  ↓
+(req, res)
+```
+
+---
+
+## 15.2 Parse the URL
+
+```js
+const url = new URL(req.url, 'http://localhost:8000');
+```
+
+This gives us useful parts of the URL:
+
+```js
+url.pathname
+url.searchParams
+```
+
+Example:
+
+```text
+/users?page=2&limit=5
+```
+
+```text
+pathname     → /users
+
+searchParams
+page         → 2
+limit        → 5
+```
+
+---
+
+## 15.3 Manual Routing
+
+```js
+switch (url.pathname) {
+  case '/':
+    // Home route
+    break;
+
+  case '/health':
+    // Health route
+    break;
+
+  case '/users':
+    // Users route
+    break;
+
+  default:
+    // Unknown route
+}
+```
+
+The router checks the URL path and decides which code should handle the request.
+
+---
+
+## 15.4 Query Parameters
+
+Example:
+
+```text
+GET /users?page=2&limit=5
+```
+
+```js
+const params = url.searchParams;
+
+const page = Number(params.get('page')) || 1;
+const limit = Number(params.get('limit')) || 10;
+```
+
+Mental model:
+
+```text
+/users?page=2&limit=5
+        ↓
+searchParams
+        ↓
+get('page')  → "2"
+get('limit') → "5"
+        ↓
+Number()
+        ↓
+2 and 5
+```
+
+> Query parameter values initially come in as strings.
+
+---
+
+## 15.5 HTTP Methods
+
+We can inspect the method using:
+
+```js
+req.method
+```
+
+Example:
+
+```js
+if (req.method === 'POST') {
+  // Handle POST
+}
+
+if (req.method === 'DELETE') {
+  // Handle DELETE
+}
+```
+
+---
+
+## 15.6 Path Parameters
+
+Example:
+
+```text
+GET /users/2
+```
+
+We can split the pathname:
+
+```js
+const parts = url.pathname.split('/');
+```
+
+Result:
+
+```text
+/users/2
+
+["", "users", "2"]
+```
+
+Then:
+
+```js
+const id = Number(parts[2]);
+```
+
+Now:
+
+```text
+"2"
+ ↓
+Number()
+ ↓
+2
+```
+
+Then we can search for the user:
+
+```js
+const user = users.find((user) => user.id === id);
+```
+
+---
+
+## 15.7 Request Body
+
+Example request:
+
+```http
+POST /users
+Content-Type: application/json
+
+{
+  "name": "Amit"
+}
+```
+
+In Node.js, the request body is a **stream**.
+
+We receive it in chunks:
+
+```js
+let body = '';
+
+req.on('data', (chunk) => {
+  body += chunk;
+});
+```
+
+When the complete body arrives:
+
+```js
+req.on('end', () => {
+  // Complete body is available
+});
+```
+
+Mental model:
+
+```text
+Request body
+    ↓
+Readable stream
+    ↓
+data chunks
+    ↓
+collect chunks
+    ↓
+end
+    ↓
+complete body
+```
+
+### ⚠️ Unbounded body — production gotcha
+
+The pattern above has no size limit. A client can send a huge (or infinite)
+body and `body += chunk` will keep growing until the process runs out of
+memory — before `'end'` ever fires.
+
+```text
+body += chunk, no limit
+    ↓
+huge/malicious payload
+    ↓
+memory exhaustion (DoS)
+```
+
+Fix: track accumulated byte size and abort past a threshold.
+
+```js
+let body = '';
+let size = 0;
+const MAX_SIZE = 1e6; // 1MB
+
+req.on('data', (chunk) => {
+  size += chunk.length;
+  if (size > MAX_SIZE) {
+    req.destroy(); // stop reading, drop connection
+    return;
+  }
+  body += chunk;
+});
+```
+
+This is exactly what Express's `body-parser` / `express.json({ limit })`
+does for you under the hood — one reason to prefer it over hand-rolled
+parsing in real services.
+
+---
+
+## 15.8 Parse JSON
+
+The body initially arrives as a string.
+
+```js
+const data = JSON.parse(body);
+```
+
+Example:
+
+```text
+'{"name":"Amit"}'
+        ↓
+    JSON.parse()
+        ↓
+{ name: "Amit" }
+```
+
+Because `JSON.parse()` can fail, use `try/catch`:
+
+```js
+try {
+  const data = JSON.parse(body);
+} catch (error) {
+  // Invalid JSON
+}
+```
+
+---
+
+## 15.9 Sending a Response
+
+Set the status and headers:
+
+```js
+res.writeHead(200, {
+  'Content-Type': 'application/json',
+});
+```
+
+Then send the response:
+
+```js
+res.end(
+  JSON.stringify({
+    message: 'Success',
+  }),
+);
+```
+
+Mental model:
+
+```text
+JavaScript object
+       ↓
+JSON.stringify()
+       ↓
+JSON string
+       ↓
+res.end()
+       ↓
+HTTP response
+```
+
+---
+
+## 15.10 Creating a User
+
+For a successful creation:
+
+```js
+res.writeHead(201, {
+  'Content-Type': 'application/json',
+});
+```
+
+`201` means:
+
+```text
+Created
+```
+
+The response could be:
+
+```js
+res.end(
+  JSON.stringify({
+    message: 'User created',
+    user: data,
+  }),
+);
+```
+
+---
+
+## 15.11 Handling Invalid JSON
+
+If the client sends:
+
+```text
+{invalid json}
+```
+
+Then:
+
+```js
+JSON.parse(body);
+```
+
+throws an error.
+
+We can respond:
+
+```js
+res.writeHead(400, {
+  'Content-Type': 'application/json',
+});
+
+res.end(
+  JSON.stringify({
+    error: 'Invalid JSON',
+  }),
+);
+```
+
+```text
+400 → Bad Request
+```
+
+---
+
+## 15.12 Why `return` Matters
+
+Consider:
+
+```js
+if (req.method === 'POST') {
+  req.on('data', ...);
+
+  req.on('end', () => {
+    res.end(...);
+  });
+
+  return;
+}
+```
+
+The outer `return` stops the current request handler.
+
+Without it:
+
+```text
+POST request
+    ↓
+register body listeners
+    ↓
+continue executing ❌
+    ↓
+GET logic may also run
+    ↓
+multiple responses ❌
+```
+
+With it:
+
+```text
+POST request
+    ↓
+register body listeners
+    ↓
+return
+    ↓
+outer handler stops
+    ↓
+body arrives
+    ↓
+'end' callback runs
+    ↓
+response sent
+```
+
+### Important distinction
+
+```js
+return res.end(...)
+```
+
+returns from the **callback**.
+
+```js
+return;
+```
+
+outside the callback stops the **outer request handler**.
+
+---
+
+# 16. What Express Will Abstract
+
+After manually implementing HTTP with Node, Express becomes much easier to understand.
+
+### Raw Node
+
+```js
+const url = new URL(req.url, 'http://localhost:8000');
+
+if (url.pathname === '/users' && req.method === 'GET') {
+  // ...
+}
+```
+
+### Express
+
+```js
+app.get('/users', (req, res) => {
+  // ...
+});
+```
+
+---
+
+### Raw Node body parsing (unbounded — see 15.7)
+
+```js
+let body = '';
+
+req.on('data', (chunk) => {
+  body += chunk;
+});
+
+req.on('end', () => {
+  const data = JSON.parse(body);
+});
+```
+
+### Express (size-limited by default via `limit` option)
+
+```js
+app.use(express.json());
+
+app.post('/users', (req, res) => {
+  const data = req.body;
+});
+```
+
+Express isn't changing HTTP.
+
+It is giving us **higher-level abstractions over Node's HTTP primitives** —
+including the size-limiting and buffering safety you'd otherwise have to
+hand-roll (see 15.7).
+
+---
+
+# 17. Final Mental Model
+
+```text
+                 HTTP
+                  │
+        ┌─────────┴─────────┐
+        ↓                   ↓
+     THEORY              NODE.JS
+        │                   │
+ Request/Response       req / res
+ Methods                req.method
+ Headers                req.headers
+ Body                   req stream
+ Status                 res.writeHead()
+ URL                    new URL()
+ Routing                switch()
+        │                   │
+        └─────────┬─────────┘
+                  ↓
+          Backend Engineering
+```
+
+## Remember
 
 ```text
 HTTP
@@ -517,6 +1067,23 @@ HTTP
 ├── HTTP/2 → multiplexed streams
 ├── HTTP/3 → QUIC/UDP
 ├── ETag → conditional caching
-├── Chunked → HTTP/1.1 streaming/framing
+├── Chunked → HTTP/1.1 message framing
 └── Node.js → request/response are streams
+
+Node.js HTTP
+├── req.method → HTTP method
+├── req.url → requested URL
+├── req.headers → request metadata
+├── new URL() → parse URL
+├── searchParams → query parameters
+├── pathname → route/path
+├── req.on('data') → receive body chunks (cap the size!)
+├── req.on('end') → body completely received
+├── JSON.parse() → JSON → JS object
+├── res.writeHead() → status + headers
+└── res.end() → send response
 ```
+
+## The one-line mental model
+
+> **HTTP defines how clients and servers communicate; Node's `http` module gives us the low-level primitives to implement that communication.**
