@@ -78,7 +78,7 @@ Response → Status + Headers + Body
 | POST    | ✘    | ✘          | Create/submit         |
 | PATCH   | ✘    | ✘*         | Partial update        |
 
-> *PATCH is not inherently idempotent; an individual PATCH operation can be designed to be idempotent.*
+> _PATCH is not inherently idempotent; an individual PATCH operation can be designed to be idempotent._
 
 **Safe:** Intended to be read-only from the client's perspective.
 
@@ -442,10 +442,10 @@ Network
 
 This enables:
 
-* large uploads/downloads
-* streaming responses
-* lower memory usage
-* backpressure
+- large uploads/downloads
+- streaming responses
+- lower memory usage
+- backpressure
 
 ### Backpressure
 
@@ -546,8 +546,8 @@ const url = new URL(req.url, 'http://localhost:8000');
 This gives us useful parts of the URL:
 
 ```js
-url.pathname
-url.searchParams
+url.pathname;
+url.searchParams;
 ```
 
 Example:
@@ -583,7 +583,7 @@ switch (url.pathname) {
     break;
 
   default:
-    // Unknown route
+  // Unknown route
 }
 ```
 
@@ -630,7 +630,7 @@ Number()
 We can inspect the method using:
 
 ```js
-req.method
+req.method;
 ```
 
 Example:
