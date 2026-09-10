@@ -12,6 +12,23 @@ const users = [
   { id: 3, name: 'Charlie' },
 ];
 
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(
+        req.method, 
+        req.url, 
+        res.statusCode, 
+        `${duration}ms`
+    );
+  });
+
+  next();
+});
+
+
 // Basic GET route
 app.get('/', (req, res) => {
   res.status(200).send('Welcome to the express');
@@ -109,6 +126,7 @@ app.post('/users', (req, res) => {
     message: 'User Created Successfully',
   });
 });
+
 
 // Start the Express server.
 app.listen(PORT, () => {
