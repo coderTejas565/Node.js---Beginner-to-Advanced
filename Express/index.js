@@ -3,31 +3,50 @@ import * as z from 'zod';
 
 const app = express();
 const PORT = 8080;
+const API_KEY = 'secret123';
 
-// Temporary in-memory users.
-// We are using this only for practicing Express routes.
+
 const users = [
   { id: 1, name: 'Alice' },
   { id: 2, name: 'Bob' },
   { id: 3, name: 'Charlie' },
 ];
 
-app.use((req, res, next) => {
+const loggerMiddleware = (req, res, next) => {
   const start = Date.now();
 
   res.on('finish', () => {
     const duration = Date.now() - start;
+
     console.log(
-        req.method, 
-        req.url, 
-        res.statusCode, 
-        `${duration}ms`
+      req.method,
+      req.url,
+      res.statusCode,
+      `${duration}ms`
     );
   });
 
   next();
-});
+};
 
+const apiKeyMiddleware = (req, res, next) => {
+  const apikey = req.headers['x-api-key'];
+
+    if (!apikey) {
+      return res.status(401).send({
+        message: 'API key required',
+      });
+    }
+
+    if (apikey !== API_KEY) {
+      return res.status(403).send({
+        message: 'Invalid API key',
+      });
+    }
+
+
+  next();
+};
 
 // Basic GET route
 app.get('/', (req, res) => {
@@ -72,7 +91,7 @@ app.get('/health', (req, res) => {
 // Query parameter values arrive as strings.
 //
 // Zod is used to validate and transform the incoming data.
-app.get('/users', (req, res) => {
+app.get('/users',loggerMiddleware, apiKeyMiddleware, (req, res) => {
   const paginationSchema = z.object({
     // coerce.number() converts values like "2" into 2.
     // int() requires an integer.
@@ -127,6 +146,17 @@ app.post('/users', (req, res) => {
   });
 });
 
+app.get('/error', (req, res) => {
+  throw new Error('Something went wrong');
+});
+
+app.use((err, req, res, next) => {
+  console.log('ERROR:', err);
+
+  res.status(500).send({
+    message: 'Internal Server Error',
+  });
+});
 
 // Start the Express server.
 app.listen(PORT, () => {
