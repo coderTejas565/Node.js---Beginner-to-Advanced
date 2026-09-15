@@ -12,6 +12,41 @@ const users = [
   { id: 3, name: 'Charlie' },
 ];
 
+
+// Custom application error
+//
+// AppError extends the built-in Error class so we can attach
+// an HTTP status code to an error.
+//
+// This lets routes throw errors like:
+// new AppError('User not found', 404)
+//
+// If no status code is provided, it defaults to 500.
+class AppError extends Error {
+  constructor(message, statusCode = 500) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+
+// Test: custom 401 error
+// 401 = authentication is required.
+app.get('/unauthorized', () => {
+    throw new AppError('Authentication required', 401)
+})
+
+// Test: custom 403 error
+// No status code is provided, so AppError defaults to 500.
+app.get('/forbidden', () => {
+  throw new AppError('You do not have permission', 403);
+});
+
+// Test: default 500 error
+app.get('/server-error', () => {
+  throw new AppError('Something went wrong');
+});
+
 const loggerMiddleware = (req, res, next) => {
   const start = Date.now();
 
@@ -150,11 +185,23 @@ app.get('/error', (req, res) => {
   throw new Error('Something went wrong');
 });
 
+// Centralized error-handling middleware
+//
+// Express identifies error middleware by its four parameters:
+// (err, req, res, next)
+//
+// Routes don't need to build the error response themselves.
+// They throw/pass an error here, and this middleware decides
+// the final HTTP response.
+//
+// err.statusCode → custom HTTP status code
+// err.message    → error message
+// fallback       → 500 Internal Server Error
 app.use((err, req, res, next) => {
   console.log('ERROR:', err);
 
-  res.status(500).send({
-    message: 'Internal Server Error',
+  res.status(err.statusCode || 500).send({
+    message: err.message || 'Internal Server Error',
   });
 });
 
