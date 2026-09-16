@@ -30,7 +30,6 @@ class AppError extends Error {
 
 app.use(express.json({ limit: '10kb' }));
 
-
 app.post('/users', (req, res) => {
   console.log(req.body);
 
@@ -228,11 +227,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start the Express server.
-app.listen(PORT, () => {
-  console.log(`Server is listening on ${PORT}`);
-});
-
 // In-memory rate-limit storage.
 //
 // Map stores data using:
@@ -374,3 +368,47 @@ if (!rateLimitStore.has(clientId)) {
     }
   }
 }
+
+
+// Simulates a long-running request.
+// This helps us test graceful shutdown while a request is still in progress.
+app.get('/slow', async (req, res) => {
+  console.log('Slow request started');
+
+  // Pause for 10 seconds to simulate a slow operation.
+  // The server should allow this request to finish during graceful shutdown.
+  await new Promise(resolve => setTimeout(resolve, 10000));
+
+  console.log('Slow request finished');
+
+  // Send the response after the slow operation completes.
+  res.send({ message: 'Done' });
+});
+
+// Start the Express HTTP server.
+// app.listen() returns the actual Node.js HTTP server instance.
+const server = app.listen(PORT, () => {
+  console.log(`Server is listening on ${PORT}`);
+});
+
+// Handles the server shutdown process for different OS/process signals.
+const shutdown = (signal) => {
+  console.log(`${signal} received. Shutting down...`);
+
+  // Stop accepting new connections.
+  // Existing requests are allowed to finish first.
+  server.close(() => {
+    console.log('Server closed.');
+
+    // Exit the Node.js process successfully after the server is closed.
+    process.exit(0);
+  });
+};
+
+// SIGINT is commonly sent when we press Ctrl+C in the terminal.
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// SIGTERM is commonly used by process managers and containers
+// to request a graceful shutdown.
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
