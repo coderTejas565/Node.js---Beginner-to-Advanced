@@ -28,6 +28,18 @@ class AppError extends Error {
   }
 }
 
+app.use(express.json({ limit: '10kb' }));
+
+
+app.post('/users', (req, res) => {
+  console.log(req.body);
+
+  return res.status(201).send({
+    message: 'User Created Successfully',
+    body: req.body,
+  });
+});
+
 // Test: custom 401 error
 // 401 = authentication is required.
 app.get('/unauthorized', () => {
@@ -184,8 +196,11 @@ app.get('/users', loggerMiddleware, apiKeyMiddleware, (req, res) => {
 // We are only practicing the HTTP method here.
 // Actual user creation will be implemented later.
 app.post('/users', (req, res) => {
-  res.status(201).send({
+  console.log(req.body);
+
+  return res.status(201).send({
     message: 'User Created Successfully',
+    body: req.body,
   });
 });
 
