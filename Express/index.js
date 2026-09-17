@@ -397,39 +397,43 @@ app.post('/idempotent', async (req, res) => {
     });
   }
 
-  // Get existing state for this idempotency key.
-  const existing = idempotencyStore.get(key);
-  const IDEMPOTENCY_TIMEOUT = 10 * 1000; // 10 seconds
+  // Check whether this request was already processed or is currently running.
+  const existing = await redisClient.get(`idempotency:${key}`);
+  const record = existing ? JSON.parse(existing) : null;
 
-  if (existing?.status === 'PROCESSING') {
-    const elapsed = Date.now() - existing.startedAt;
-
-    if (elapsed < IDEMPOTENCY_TIMEOUT) {
-      return res.status(409).send({
-        message: 'Request is already being processed',
-      });
-    }
-
-    // Remove stale PROCESSING record so the request can retry.
-    idempotencyStore.delete(key);
-  }
-
-  // Return the stored result instead of executing the operation again.
-  if (existing?.status === 'COMPLETED') {
-    return res.status(200).send({
-      message: 'Duplicate request',
-      result: existing.result,
+  if (record?.status === 'PROCESSING') {
+    return res.status(409).send({
+      message: 'Request is already being processed',
     });
   }
 
-  // Reserve the key before starting the operation.
-  // NEW → PROCESSING
+  // Replay the original result instead of executing the operation again.
+  if (record?.status === 'COMPLETED') {
+    return res.status(200).send({
+      message: 'Duplicate request',
+      result: record.result,
+    });
+  }
 
-  idempotencyStore.set(key, {
-    status: 'PROCESSING',
-    result: null,
-    startedAt: Date.now(),
-  });
+  // Atomically reserve the key to prevent concurrent requests from
+  // executing the same operation.
+  const lockResult = await redisClient.set(
+    `idempotency:${key}`,
+    JSON.stringify({
+      status: 'PROCESSING',
+      result: null,
+    }),
+    {
+      NX: true,
+      EX: 10,
+    },
+  );
+
+  if (lockResult === null) {
+    return res.status(409).send({
+      message: 'Request is already being processed',
+    });
+  }
 
   try {
     await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -439,21 +443,24 @@ app.post('/idempotent', async (req, res) => {
       message: 'Operation processed',
     };
 
-    // Operation succeeded.
-    // PROCESSING → COMPLETED
-    idempotencyStore.set(key, {
-      status: 'COMPLETED',
-      result,
-    });
+    // Store the result so future retries can replay the original response.
+    await redisClient.set(
+      `idempotency:${key}`,
+      JSON.stringify({
+        status: 'COMPLETED',
+        result,
+      }),
+      {
+        EX: 60 * 60,
+      },
+    );
 
     return res.status(201).send(result);
   } catch (error) {
     console.error('Idempotent operation failed:', error);
 
-    // Operation failed.
-    // Remove the key so the client can retry.
-    idempotencyStore.delete(key);
-    idempotencyStore.delete(key);
+    // Allow the client to retry after an operation failure.
+    await redisClient.del(`idempotency:${key}`);
 
     return res.status(500).send({
       message: 'Operation failed',
