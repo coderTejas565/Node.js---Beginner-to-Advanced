@@ -1,6 +1,6 @@
 import express from 'express';
-import { count } from 'node:console';
 import * as z from 'zod';
+import redisClient from './redis.js';
 
 const app = express();
 const PORT = 8080;
@@ -11,6 +11,10 @@ const users = [
   { id: 2, name: 'Bob' },
   { id: 3, name: 'Charlie' },
 ];
+
+// Stores idempotency state for each request key.
+// Primitive in-memory implementation; production will use Redis.
+const idempotencyStore = new Map();
 
 // Custom application error
 //
@@ -369,7 +373,6 @@ if (!rateLimitStore.has(clientId)) {
   }
 }
 
-
 // Simulates a long-running request.
 // This helps us test graceful shutdown while a request is still in progress.
 app.get('/slow', async (req, res) => {
@@ -377,12 +380,85 @@ app.get('/slow', async (req, res) => {
 
   // Pause for 10 seconds to simulate a slow operation.
   // The server should allow this request to finish during graceful shutdown.
-  await new Promise(resolve => setTimeout(resolve, 10000));
+  await new Promise((resolve) => setTimeout(resolve, 10000));
 
   console.log('Slow request finished');
 
   // Send the response after the slow operation completes.
   res.send({ message: 'Done' });
+});
+
+app.post('/idempotent', async (req, res) => {
+  const key = req.headers['idempotency-key'];
+
+  if (!key) {
+    return res.status(400).send({
+      message: 'Idempotency-Key header is required',
+    });
+  }
+
+  // Get existing state for this idempotency key.
+  const existing = idempotencyStore.get(key);
+  const IDEMPOTENCY_TIMEOUT = 10 * 1000; // 10 seconds
+
+  if (existing?.status === 'PROCESSING') {
+    const elapsed = Date.now() - existing.startedAt;
+
+    if (elapsed < IDEMPOTENCY_TIMEOUT) {
+      return res.status(409).send({
+        message: 'Request is already being processed',
+      });
+    }
+
+    // Remove stale PROCESSING record so the request can retry.
+    idempotencyStore.delete(key);
+  }
+
+  // Return the stored result instead of executing the operation again.
+  if (existing?.status === 'COMPLETED') {
+    return res.status(200).send({
+      message: 'Duplicate request',
+      result: existing.result,
+    });
+  }
+
+  // Reserve the key before starting the operation.
+  // NEW → PROCESSING
+
+  idempotencyStore.set(key, {
+    status: 'PROCESSING',
+    result: null,
+    startedAt: Date.now(),
+  });
+
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const result = {
+      id: Date.now(),
+      message: 'Operation processed',
+    };
+
+    // Operation succeeded.
+    // PROCESSING → COMPLETED
+    idempotencyStore.set(key, {
+      status: 'COMPLETED',
+      result,
+    });
+
+    return res.status(201).send(result);
+  } catch (error) {
+    console.error('Idempotent operation failed:', error);
+
+    // Operation failed.
+    // Remove the key so the client can retry.
+    idempotencyStore.delete(key);
+    idempotencyStore.delete(key);
+
+    return res.status(500).send({
+      message: 'Operation failed',
+    });
+  }
 });
 
 // Start the Express HTTP server.
@@ -411,4 +487,3 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 // SIGTERM is commonly used by process managers and containers
 // to request a graceful shutdown.
 process.on('SIGTERM', () => shutdown('SIGTERM'));
-
