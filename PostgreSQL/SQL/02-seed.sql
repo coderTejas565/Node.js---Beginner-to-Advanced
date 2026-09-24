@@ -58,12 +58,13 @@ JOIN products
    SELECT
     users.name AS customer_name,
     orders.id AS order_id,
-    SUM(order_items.quantity * order_items.price_paise) AS total_amount
-FROM users
-JOIN orders
-    ON users.id = orders.user_id
-JOIN order_items
+    orders.status,
+    SUM(order_items.quantity * order_items.price_paise) AS total_amount 
+    FROM users
+    JOIN orders
+    ON users.id = orders.user_id 
+    JOIN order_items
     ON orders.id = order_items.order_id
-GROUP BY
-    users.name,
-    orders.id;
+    GROUP BY users.name, orders.id, orders.status 
+    HAVING SUM(order_items.quantity * order_items.price_paise) > 200000
+    ORDER BY total_amount DESC;
