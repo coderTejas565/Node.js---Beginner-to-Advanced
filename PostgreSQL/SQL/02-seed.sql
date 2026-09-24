@@ -68,3 +68,12 @@ JOIN products
     GROUP BY users.name, orders.id, orders.status 
     HAVING SUM(order_items.quantity * order_items.price_paise) > 200000
     ORDER BY total_amount DESC;
+
+
+    SELECT users.name, orders.id AS order_id FROM users
+    LEFT JOIN orders ON users.id = orders.user_id;
+
+    INSERT INTO users (name,email) VALUES ('ayush', 'ayush1@gmail.com');
+
+    SELECT users.id, users.name, users.email from users 
+    LEFT JOIN orders ON users.id = orders.user_id WHERE orders.id IS NULL;
