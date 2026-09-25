@@ -77,3 +77,28 @@ JOIN products
 
     SELECT users.id, users.name, users.email from users 
     LEFT JOIN orders ON users.id = orders.user_id WHERE orders.id IS NULL;
+
+
+    SELECT 
+    users.name AS customer_name,
+    COUNT(orders.id) AS total_orders 
+    FROM users
+    LEFT JOIN orders 
+    ON users.id = orders.user_id
+    GROUP BY users.id , users.name
+    ORDER BY total_orders DESC;
+
+    SELECT DISTINCT 
+    users.name AS customer_name
+    FROM users
+    JOIN orders
+    ON users.id = orders.user_id;
+
+        SELECT 
+    users.name AS customer_name,
+    COUNT(orders.id) AS total_orders 
+    FROM users
+    LEFT JOIN orders 
+    ON users.id = orders.user_id
+    GROUP BY users.id , users.name
+    HAVING COUNT(orders.id) >= 2
