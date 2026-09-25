@@ -101,4 +101,23 @@ JOIN products
     LEFT JOIN orders 
     ON users.id = orders.user_id
     GROUP BY users.id , users.name
-    HAVING COUNT(orders.id) >= 2
+    HAVING COUNT(orders.id) >= 2;
+
+    SELECT
+    users.name AS customer_name,
+    COUNT(DISTINCT orders.id) AS total_orders,
+    COALESCE(
+        SUM(
+            order_items.quantity * order_items.price_paise
+        ),
+        0
+    ) AS total_amount
+FROM users
+LEFT JOIN orders
+    ON users.id = orders.user_id
+LEFT JOIN order_items
+    ON orders.id = order_items.order_id
+GROUP BY
+    users.id,
+    users.name
+ORDER BY total_amount DESC;
