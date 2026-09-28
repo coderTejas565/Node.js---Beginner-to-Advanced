@@ -121,3 +121,69 @@ GROUP BY
     users.id,
     users.name
 ORDER BY total_amount DESC;
+
+-- RollBack 
+BEGIN;
+
+INSERT INTO users (name, email)
+VALUES ('Transaction Test', 'transaction@example.com');
+
+ROLLBACK;
+
+
+-- Commit
+BEGIN;
+
+INSERT INTO users (name, email)
+VALUES ('Transaction Test', 'transaction@example.com');
+
+COMMIT;
+
+SELECT *
+FROM users
+WHERE email = 'transaction@example.com';
+
+
+
+BEGIN;
+INSERT INTO orders (user_id, status) VALUES (2, 'pending');
+INSERT INTO order_items (order_id, product_id, quantity, price_paise) VALUES
+    (6, 5, 2, 250000);
+COMMIT;
+
+
+BEGIN;
+
+INSERT INTO orders (user_id, status)
+VALUES (2, 'pending')
+RETURNING id;
+
+
+
+ROLLBACK;
+
+BEGIN;
+
+INSERT INTO orders (user_id, status)
+VALUES (2, 'pending')
+RETURNING id;
+
+SELECT id, user_id, status
+FROM orders
+ORDER BY id DESC
+LIMIT 1;
+
+INSERT INTO order_items
+    (order_id, product_id, quantity, price_paise)
+VALUES
+    (8, 1, 2, 250000);
+
+    COMMIT;
+
+    SELECT *
+FROM orders
+WHERE id = 8;
+
+SELECT *
+FROM order_items
+WHERE order_id = 8;
