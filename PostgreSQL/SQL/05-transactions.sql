@@ -117,3 +117,39 @@ COMMIT;
 SELECT stock_quantity
 FROM products
 WHERE id = 1;
+
+
+
+-- Row locking prevents concurrent transactions from modifying the same row at the same time.
+
+-- Connection A
+BEGIN;
+
+-- Lock product #1 until this transaction ends.
+SELECT stock_quantity
+FROM products
+WHERE id = 1
+FOR UPDATE;
+
+-- Keep the transaction open so Connection B has to wait.
+
+
+-- Connection B
+BEGIN;
+
+-- This waits until Connection A commits or rolls back.
+SELECT stock_quantity
+FROM products
+WHERE id = 1
+FOR UPDATE;
+
+
+-- Back to Connection A
+COMMIT;
+
+-- Connection B now gets the lock and continues.
+
+
+-- Key idea:
+-- SELECT ... FOR UPDATE locks selected rows until COMMIT or ROLLBACK.
+-- Other transactions trying to lock the same row must wait.
